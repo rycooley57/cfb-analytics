@@ -1,0 +1,60 @@
+# CFB Analytics
+
+Play-by-play college football success rate and defensive efficiency metrics, built from [collegefootballdata.com](https://collegefootballdata.com) data — a project for learning ML/data-engineering end to end, ending in a Streamlit dashboard.
+
+## Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Get a free API key from https://collegefootballdata.com/key, then:
+
+```bash
+cp .env.example .env
+# edit .env and set CFBD_API_KEY
+```
+
+## Pipeline
+
+```bash
+# 1. Pull a season's play-by-play and build processed feature tables
+python scripts/build_dataset.py 2023 2024
+
+# 2. Train the baseline play-success model (train on one season, test on another)
+python scripts/train_baseline_model.py --train 2023 --test 2024
+
+# 3. Run tests
+pytest tests/
+
+# 4. Launch the dashboard
+streamlit run dashboard/app.py
+```
+
+## How the metrics are built
+
+- **Success rate** (`src/cfb_analytics/metrics.py`): the standard down-based threshold rule — a play succeeds if it gains ≥50% of yards-to-go on 1st down, ≥70% on 2nd, or converts outright on 3rd/4th. Touchdowns always succeed; turnovers always fail.
+- **Defensive efficiency**: success rate allowed, PPA allowed per play (CFBD's own EPA-equivalent), stuff rate (runs stopped at/behind the line), and havoc rate (stuffs + sacks + turnovers forced — a lower bound, since CFBD's `/plays` endpoint doesn't expose pass breakups).
+- **Baseline ML model** (`src/cfb_analytics/models.py`): predicts whether a play will succeed from pre-snap situational features only (down, distance, field position, score differential, quarter, the offense's rolling success rate so far in the game). Trained on one season, evaluated on a different one, so the reported accuracy/log-loss reflect real generalization.
+
+## Project layout
+
+```
+src/cfb_analytics/   ingestion (client.py), metrics, aggregation, model code
+scripts/             CLI entrypoints: build_dataset.py, train_baseline_model.py
+notebooks/           exploratory walkthroughs — the learning on-ramp
+dashboard/           Streamlit app: Team Explorer, Game Explorer, Model Explorer
+tests/               unit tests for the metrics logic
+data/raw/            cached raw API responses (gitignored)
+data/processed/      engineered feature tables + trained model (gitignored)
+```
+
+`data/` is gitignored — re-run `build_dataset.py` (and `train_baseline_model.py`) after cloning to regenerate it.
+
+## What's next
+
+- More seasons, and a wider metric set (explosiveness, line yards, PPA splits by play type).
+- Live in-progress game tracking (deferred deliberately for v1 — `client.py` is structured so this doesn't require a rewrite).
+- Model improvements: more features, better calibration, a full win-probability model.
