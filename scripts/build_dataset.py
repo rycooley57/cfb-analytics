@@ -18,8 +18,11 @@ def build_season(year: int, weeks: range = range(1, 16)) -> None:
     plays = get_season_plays(year, weeks=weeks)
     plays = add_all_metrics(plays)
 
-    teams = get_teams(year)
-    games = get_games(year)
+    # Teams/games are cheap single calls, and for the current season their
+    # `completed` flag and scores change week to week — always fetch fresh
+    # rather than trusting a stale cache.
+    teams = get_teams(year, use_cache=False)
+    games = get_games(year, use_cache=False)
 
     DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     plays.to_parquet(DATA_PROCESSED_DIR / f"plays_{year}.parquet")

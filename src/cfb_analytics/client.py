@@ -45,13 +45,20 @@ def get_games(year: int, season_type: str = "regular", team: str | None = None, 
 
 def get_plays(year: int, week: int, season_type: str = "regular", use_cache: bool = True) -> pd.DataFrame:
     """Play-by-play is only queryable per-week from CFBD, so ingestion for a
-    full season means looping over weeks 1..15ish and concatenating."""
+    full season means looping over weeks 1..15ish and concatenating.
+
+    A week that hasn't been played yet returns no data — that result is
+    deliberately NOT cached, so re-running later (once the week is played)
+    fetches it instead of replaying a stale empty cache forever. This
+    matters for the current, in-progress season."""
     path = _cache_path("plays", year=year, week=week, season_type=season_type)
     if use_cache and path.exists():
         return pd.read_parquet(path)
     params = {"year": year, "week": week, "seasonType": season_type}
     data = _get("/plays", params)
     df = pd.json_normalize(data)
+    if df.empty:
+        return df
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path)
     return df
