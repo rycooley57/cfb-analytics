@@ -3,18 +3,19 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from components import inject_css, model_card_html, page_header, prob_bar_html, section_title
 from data_loader import load_eval_results, load_model
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from cfb_analytics.models import FEATURE_COLS  # noqa: E402
 
 st.set_page_config(page_title="Model Explorer", page_icon="🏈", layout="wide")
-st.title("Model Explorer — Play Success Prediction")
-st.caption(
-    "A baseline model predicting whether a play succeeds, from pre-snap "
-    "situational features only (no knowledge of the play call). Trained on "
-    "one season, evaluated on the next, so the numbers reflect real "
-    "generalization rather than memorizing a season's teams."
+inject_css(st)
+page_header(
+    st,
+    "Model Explorer",
+    "Predicting play success from pre-snap situational features only. Trained on one season, "
+    "evaluated on the next, so results reflect real generalization.",
 )
 
 bundle = load_model()
@@ -28,12 +29,21 @@ model = bundle["model"]
 fill_value = bundle["fill_value"]
 model_name = bundle["name"]
 
-st.subheader("Held-out season performance")
+section_title(st, "Held-Out Season Performance")
 if eval_results is not None:
-    st.dataframe(eval_results, use_container_width=True)
-    st.caption(f"Deployed model: **{model_name}** (lowest log loss on the held-out test season).")
+    cards = []
+    for _, r in eval_results.iterrows():
+        cards.append(
+            model_card_html(
+                r["model"].replace("_", " "),
+                [("Accuracy", f"{r['accuracy']:.1%}"), ("Log loss", f"{r['log_loss']:.3f}")],
+                active=r["model"] == model_name,
+            )
+        )
+    st.markdown(f'<div class="stat-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+    st.caption(f"Trained on {int(eval_results['train_year'].iloc[0])}, evaluated on {int(eval_results['test_year'].iloc[0])}.")
 
-st.subheader("Try it")
+section_title(st, "Try It")
 st.write("Set a game situation and see the model's predicted probability the next play succeeds.")
 
 col1, col2, col3 = st.columns(3)
@@ -50,5 +60,13 @@ X = pd.DataFrame(
 )
 proba = model.predict_proba(X)[0, 1]
 
-st.metric("Predicted success probability", f"{proba:.1%}")
-st.progress(min(max(proba, 0.0), 1.0))
+st.markdown(
+    f"""
+    <div class="stat-tile" style="max-width:320px;">
+      <div class="stat-label">Predicted success probability</div>
+      <div class="stat-value">{proba:.1%}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+st.markdown(prob_bar_html(proba), unsafe_allow_html=True)
