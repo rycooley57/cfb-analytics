@@ -7,8 +7,10 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from cfb_analytics.client import get_teams_all  # noqa: E402
+from cfb_analytics.client import get_ap_top25, get_teams_all  # noqa: E402
 from cfb_analytics.config import DATA_PROCESSED_DIR  # noqa: E402
+
+from theme import team_colors, team_logo  # noqa: E402
 
 
 @st.cache_data
@@ -49,6 +51,20 @@ def load_d1_teams(year: int) -> pd.DataFrame:
     teams endpoint, not play-by-play."""
     df = get_teams_all(year)
     return df[df["classification"].isin(["fbs", "fcs"])].reset_index(drop=True)
+
+
+@st.cache_data(ttl=3600)
+def load_ap_top25(year: int) -> pd.DataFrame:
+    """Latest AP Top 25 joined with team logo/color. Short TTL (not the
+    usual unbounded st.cache_data) since the poll changes weekly in-season."""
+    ap = get_ap_top25(year)
+    if ap.empty:
+        return ap
+    teams = load_d1_teams(year).set_index("school")
+    ap = ap.copy()
+    ap["logo"] = ap["school"].map(lambda s: team_logo(teams.loc[s]) if s in teams.index else None)
+    ap["color"] = ap["school"].map(lambda s: team_colors(teams.loc[s])["primary"] if s in teams.index else None)
+    return ap
 
 
 @st.cache_resource

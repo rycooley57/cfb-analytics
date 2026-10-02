@@ -42,6 +42,22 @@ def get_teams_all(year: int, use_cache: bool = True) -> pd.DataFrame:
     return df
 
 
+def get_ap_top25(year: int) -> pd.DataFrame:
+    """The most recent week's AP Top 25 for the season. Not cached to disk —
+    rankings change weekly during the season, so this always hits the API;
+    callers should wrap it in a short-TTL cache if called often."""
+    data = _get("/rankings", {"year": year})
+    if not data:
+        return pd.DataFrame()
+    latest = max(data, key=lambda d: d["week"])
+    ap = next((p for p in latest["polls"] if p["poll"] == "AP Top 25"), None)
+    if ap is None:
+        return pd.DataFrame()
+    df = pd.json_normalize(ap["ranks"]).sort_values("rank").reset_index(drop=True)
+    df["week"] = latest["week"]
+    return df
+
+
 def get_games(year: int, season_type: str = "regular", team: str | None = None, use_cache: bool = True) -> pd.DataFrame:
     path = _cache_path("games", year=year, season_type=season_type, team=team)
     if use_cache and path.exists():

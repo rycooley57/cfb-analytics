@@ -43,13 +43,17 @@ streamlit run dashboard/app.py
 
 A drag-and-drop board (`dashboard/pages/4_Conference_Realignment.py`, `dashboard/realignment.py`) for rearranging all 266 FBS + FCS (Division I) programs into any conference grouping you want. It's a self-contained HTML/CSS/JS component (vanilla drag-and-drop, no libraries) embedded via `st.components.v1.html` — team moves are pure client-side JS, so dragging never triggers a Streamlit rerun, and your layout is saved automatically per-browser via `localStorage`.
 
+## Playoff Bracket
+
+A single-elimination bracket (`dashboard/pages/5_Playoff_Bracket.py`, `dashboard/bracket.py`) seeded from the latest AP Top 25, with selectable field sizes (4/6/8/12/14/16/24 teams). Byes are computed from the standard recursive tournament-seeding order used by real single-elim brackets, so a size like 12 reproduces the actual CFP format (top 4 seeds bye, 5v12/6v11/7v10/8v9) without hardcoding it — the same math just works for every size. Drag teams between first-round seeds to re-seed, click a team in any decided matchup to advance them, and the champion crowns itself once every round is picked. Same component pattern as the realignment board: vanilla drag-and-drop, no libraries, `localStorage` persistence per bracket size.
+
 ## Project layout
 
 ```
 src/cfb_analytics/   ingestion (client.py), metrics, aggregation, model code
 scripts/             CLI entrypoints: build_dataset.py, train_baseline_model.py
 notebooks/           exploratory walkthroughs — the learning on-ramp
-dashboard/           Streamlit app: Team Explorer, Game Explorer, Model Explorer, Conference Realignment
+dashboard/           Streamlit app: Team Explorer, Game Explorer, Model Explorer, Conference Realignment, Playoff Bracket
 tests/               unit tests for the metrics logic
 data/raw/            cached raw API responses (gitignored)
 data/processed/      engineered feature tables + trained model (gitignored)
