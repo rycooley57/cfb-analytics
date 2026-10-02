@@ -32,7 +32,15 @@ def realignment_board_html(teams: list[dict], storage_key: str) -> str:
   .toolbar button.danger:hover {{ border-color: {STATUS_BAD}; color: {STATUS_BAD}; }}
   .summary-text {{ color: {TEXT_SECONDARY}; font-size: 0.82rem; margin-left: auto; }}
 
-  .board {{ flex: 1; min-height: 0; display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; padding-bottom: 10px; align-items: stretch; }}
+  .board-wrapper {{ flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }}
+  .row-group {{ display: flex; flex-direction: column; min-height: 0; }}
+  .row-group-top {{ flex: 0 0 300px; }}
+  .row-group-bottom {{ flex: 1; min-height: 0; border-top: 1px solid {BORDER}; padding-top: 10px; }}
+  .row-label {{
+    flex: 0 0 auto; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: {TEXT_MUTED}; margin-bottom: 4px;
+  }}
+  .board-row {{ flex: 1; min-height: 0; display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; align-items: stretch; }}
 
   .column {{
     flex: 0 0 220px; max-width: 220px; display: flex; flex-direction: column;
@@ -69,7 +77,16 @@ def realignment_board_html(teams: list[dict], storage_key: str) -> str:
     <button id="reset-btn" class="danger">Reset to Real Conferences</button>
     <span class="summary-text" id="summary"></span>
   </div>
-  <div class="board" id="board"></div>
+  <div class="board-wrapper">
+    <div class="row-group row-group-top">
+      <div class="row-label">Power 4</div>
+      <div class="board-row" id="board-top"></div>
+    </div>
+    <div class="row-group row-group-bottom">
+      <div class="row-label">Everyone Else</div>
+      <div class="board-row" id="board-bottom"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -184,10 +201,9 @@ function applySearch() {{
   }});
 }}
 
-function render() {{
-  const board = document.getElementById("board");
-  board.innerHTML = "";
-  state.columns.forEach(col => {{
+const TOP_CONFS = ["Big Ten", "SEC", "Big 12", "ACC"];
+
+function buildColumnElement(col) {{
     const colEl = document.createElement("div");
     colEl.className = "column";
 
@@ -256,8 +272,21 @@ function render() {{
 
     colEl.appendChild(header);
     colEl.appendChild(list);
-    board.appendChild(colEl);
-  }});
+    return colEl;
+}}
+
+function render() {{
+  const top = document.getElementById("board-top");
+  const bottom = document.getElementById("board-bottom");
+  top.innerHTML = "";
+  bottom.innerHTML = "";
+
+  const topCols = TOP_CONFS.map(n => state.columns.find(c => c.name === n)).filter(Boolean);
+  const topNames = new Set(topCols.map(c => c.name));
+  const restCols = state.columns.filter(c => !topNames.has(c.name));
+
+  topCols.forEach(col => top.appendChild(buildColumnElement(col)));
+  restCols.forEach(col => bottom.appendChild(buildColumnElement(col)));
 
   document.getElementById("summary").textContent =
     state.columns.length + " conferences \\u00b7 " + TEAMS.length + " teams";
