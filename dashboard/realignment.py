@@ -94,6 +94,7 @@ def realignment_board_html(teams: list[dict], storage_key: str) -> str:
 <script>
 const TEAMS = {teams_json};
 const STORAGE_KEY = "{storage_key}";
+const TOP_CONF_NAMES = ["Big Ten", "SEC", "Big 12", "ACC"];
 
 function seedColumns() {{
   const byConf = {{}};
@@ -103,9 +104,9 @@ function seedColumns() {{
     byConf[conf].push(t.id);
   }});
   const names = Object.keys(byConf).sort();
-  const cols = names.map(n => ({{ name: n, teamIds: byConf[n] }}));
+  const cols = names.map(n => ({{ name: n, teamIds: byConf[n], top: TOP_CONF_NAMES.includes(n) }}));
   if (!byConf.hasOwnProperty("Unassigned")) {{
-    cols.unshift({{ name: "Unassigned", teamIds: [] }});
+    cols.unshift({{ name: "Unassigned", teamIds: [], top: false }});
   }}
   return cols;
 }}
@@ -113,7 +114,15 @@ function seedColumns() {{
 function loadState() {{
   try {{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {{
+      const parsed = JSON.parse(raw);
+      // Older saved boards predate the `top` flag — infer it from name so
+      // existing layouts don't lose their Power 4 placement.
+      parsed.columns.forEach(c => {{
+        if (c.top === undefined) c.top = TOP_CONF_NAMES.includes(c.name);
+      }});
+      return parsed;
+    }}
   }} catch (e) {{}}
   return {{ columns: seedColumns() }};
 }}
@@ -142,7 +151,7 @@ function moveTeam(teamId, destName) {{
 function ensureUnassigned() {{
   let col = state.columns.find(c => c.name === "Unassigned");
   if (!col) {{
-    col = {{ name: "Unassigned", teamIds: [] }};
+    col = {{ name: "Unassigned", teamIds: [], top: false }};
     state.columns.unshift(col);
   }}
   return col;
@@ -157,7 +166,8 @@ function addConference() {{
     alert("A conference with that name already exists.");
     return;
   }}
-  state.columns.push({{ name: trimmed, teamIds: [] }});
+  // New conferences join the Power 4 row at top, same as Big Ten/SEC/Big 12/ACC.
+  state.columns.push({{ name: trimmed, teamIds: [], top: true }});
   saveState();
   render();
 }}
@@ -202,8 +212,6 @@ function applySearch() {{
     chip.classList.toggle("hidden", !match);
   }});
 }}
-
-const TOP_CONFS = ["Big Ten", "SEC", "Big 12", "ACC"];
 
 function buildColumnElement(col) {{
     const colEl = document.createElement("div");
@@ -283,9 +291,17 @@ function render() {{
   top.innerHTML = "";
   bottom.innerHTML = "";
 
-  const topCols = TOP_CONFS.map(n => state.columns.find(c => c.name === n)).filter(Boolean);
-  const topNames = new Set(topCols.map(c => c.name));
-  const restCols = state.columns.filter(c => !topNames.has(c.name));
+  // Big Ten/SEC/Big 12/ACC always lead the Power 4 row in that order;
+  // any other top-pinned (e.g. newly created) conferences follow after.
+  const topCols = state.columns.filter(c => c.top).sort((a, b) => {{
+    const ai = TOP_CONF_NAMES.indexOf(a.name);
+    const bi = TOP_CONF_NAMES.indexOf(b.name);
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  }});
+  const restCols = state.columns.filter(c => !c.top);
 
   topCols.forEach(col => top.appendChild(buildColumnElement(col)));
   restCols.forEach(col => bottom.appendChild(buildColumnElement(col)));
