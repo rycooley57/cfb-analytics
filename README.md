@@ -39,13 +39,17 @@ streamlit run dashboard/app.py
 - **Defensive efficiency**: success rate allowed, PPA allowed per play (CFBD's own EPA-equivalent), stuff rate (runs stopped at/behind the line), and havoc rate (stuffs + sacks + turnovers forced — a lower bound, since CFBD's `/plays` endpoint doesn't expose pass breakups).
 - **Baseline ML model** (`src/cfb_analytics/models.py`): predicts whether a play will succeed from pre-snap situational features only (down, distance, field position, score differential, quarter, the offense's rolling success rate so far in the game). Trained on one season, evaluated on a different one, so the reported accuracy/log-loss reflect real generalization.
 
+## Conference Realignment
+
+A drag-and-drop board (`dashboard/pages/4_Conference_Realignment.py`, `dashboard/realignment.py`) for rearranging all 266 FBS + FCS (Division I) programs into any conference grouping you want. It's a self-contained HTML/CSS/JS component (vanilla drag-and-drop, no libraries) embedded via `st.components.v1.html` — team moves are pure client-side JS, so dragging never triggers a Streamlit rerun, and your layout is saved automatically per-browser via `localStorage`.
+
 ## Project layout
 
 ```
 src/cfb_analytics/   ingestion (client.py), metrics, aggregation, model code
 scripts/             CLI entrypoints: build_dataset.py, train_baseline_model.py
 notebooks/           exploratory walkthroughs — the learning on-ramp
-dashboard/           Streamlit app: Team Explorer, Game Explorer, Model Explorer
+dashboard/           Streamlit app: Team Explorer, Game Explorer, Model Explorer, Conference Realignment
 tests/               unit tests for the metrics logic
 data/raw/            cached raw API responses (gitignored)
 data/processed/      engineered feature tables + trained model (gitignored)

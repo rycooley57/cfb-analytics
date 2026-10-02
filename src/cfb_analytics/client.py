@@ -29,6 +29,19 @@ def get_teams(year: int, use_cache: bool = True) -> pd.DataFrame:
     return df
 
 
+def get_teams_all(year: int, use_cache: bool = True) -> pd.DataFrame:
+    """All classifications (FBS, FCS, II, III), unlike get_teams which is
+    FBS-only. Used for D1 (FBS + FCS) features like conference realignment."""
+    path = _cache_path("teams_all", year=year)
+    if use_cache and path.exists():
+        return pd.read_parquet(path)
+    data = _get("/teams", {"year": year})
+    df = pd.json_normalize(data)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(path)
+    return df
+
+
 def get_games(year: int, season_type: str = "regular", team: str | None = None, use_cache: bool = True) -> pd.DataFrame:
     path = _cache_path("games", year=year, season_type=season_type, team=team)
     if use_cache and path.exists():
