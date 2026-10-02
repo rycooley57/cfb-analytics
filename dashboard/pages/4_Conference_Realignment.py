@@ -35,4 +35,4 @@ teams_payload = [
 ]
 
 storage_key = f"cfb-realignment-{year}"
-components.html(realignment_board_html(teams_payload, storage_key), height=860, scrolling=False)
+components.html(realignment_board_html(teams_payload, storage_key), height=1500, scrolling=False)

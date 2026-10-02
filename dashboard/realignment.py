@@ -34,7 +34,9 @@ def realignment_board_html(teams: list[dict], storage_key: str) -> str:
 
   .board-wrapper {{ flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }}
   .row-group {{ display: flex; flex-direction: column; min-height: 0; }}
-  .row-group-top {{ flex: 0 0 300px; }}
+  .row-group-top {{ flex: 0 0 auto; }}
+  .row-group-top .column {{ max-height: none; }}
+  .row-group-top .chip-list {{ overflow-y: visible; }}
   .row-group-bottom {{ flex: 1; min-height: 0; border-top: 1px solid {BORDER}; padding-top: 10px; }}
   .row-label {{
     flex: 0 0 auto; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
