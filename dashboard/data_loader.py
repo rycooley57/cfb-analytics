@@ -53,6 +53,18 @@ def load_d1_teams(year: int) -> pd.DataFrame:
     return df[df["classification"].isin(["fbs", "fcs"])].reset_index(drop=True)
 
 
+@st.cache_data
+def load_conference_snapshot(year: int) -> pd.DataFrame:
+    """All teams with a known conference for a season — used for the
+    realignment board's historical snapshots. Unlike load_d1_teams, this
+    does NOT filter by classification: FBS/FCS as categories didn't exist
+    before 1978 (Division I itself didn't exist before 1973), and CFBD's
+    classification field isn't reliably period-accurate for older seasons.
+    Conference membership itself is the meaningful signal for an era."""
+    df = get_teams_all(year)
+    return df[df["conference"].notna()].reset_index(drop=True)
+
+
 @st.cache_data(ttl=3600)
 def load_ap_top25(year: int) -> pd.DataFrame:
     """Latest AP Top 25 joined with team logo/color. Short TTL (not the
