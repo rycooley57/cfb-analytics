@@ -48,7 +48,14 @@ def realignment_board_html(teams: list[dict], storage_key: str) -> str:
     flex: 0 0 220px; max-width: 220px; display: flex; flex-direction: column;
     background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 8px; max-height: 100%;
   }}
+  .column.dragging-col {{ opacity: 0.35; }}
+  .column.drag-over-col {{ outline: 2px dashed {ACCENT}; outline-offset: -2px; }}
   .column-header {{ display: flex; align-items: center; gap: 6px; padding: 10px 10px 8px 10px; border-bottom: 1px solid {BORDER}; }}
+  .column-handle {{
+    cursor: grab; color: {TEXT_MUTED}; font-size: 0.72rem; letter-spacing: -2px;
+    padding: 0 2px; user-select: none; flex-shrink: 0;
+  }}
+  .column-handle:active {{ cursor: grabbing; }}
   .column-title {{
     font-weight: 600; font-size: 0.85rem; flex: 1; outline: none; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; cursor: text;
@@ -103,12 +110,22 @@ function seedColumns() {{
     if (!byConf[conf]) byConf[conf] = [];
     byConf[conf].push(t.id);
   }});
-  const names = Object.keys(byConf).sort();
-  const cols = names.map(n => ({{ name: n, teamIds: byConf[n], top: TOP_CONF_NAMES.includes(n) }}));
-  if (!byConf.hasOwnProperty("Unassigned")) {{
-    cols.unshift({{ name: "Unassigned", teamIds: [], top: false }});
-  }}
-  return cols;
+  if (!byConf.hasOwnProperty("Unassigned")) byConf["Unassigned"] = [];
+
+  // Array order IS display order within each row (no re-sort at render
+  // time, so drag-reordering sticks) — so the initial order matters:
+  // Big Ten/SEC/Big 12/ACC lead the top row, Unassigned leads the
+  // bottom row, everything else follows alphabetically.
+  const allNames = Object.keys(byConf).sort();
+  const topNames = TOP_CONF_NAMES.filter(n => allNames.includes(n));
+  const restNames = allNames.filter(n => !TOP_CONF_NAMES.includes(n) && n !== "Unassigned");
+
+  const topCols = topNames.map(n => ({{ name: n, teamIds: byConf[n], top: true }}));
+  const restCols = [
+    {{ name: "Unassigned", teamIds: byConf["Unassigned"], top: false }},
+    ...restNames.map(n => ({{ name: n, teamIds: byConf[n], top: false }})),
+  ];
+  return [...topCols, ...restCols];
 }}
 
 function loadState() {{
@@ -144,6 +161,26 @@ function moveTeam(teamId, destName) {{
   if (src) src.teamIds = src.teamIds.filter(id => id !== teamId);
   const dest = state.columns.find(c => c.name === destName);
   if (dest && !dest.teamIds.includes(teamId)) dest.teamIds.push(teamId);
+  saveState();
+  render();
+}}
+
+function reorderColumn(draggedName, targetName, isTopRow) {{
+  if (draggedName === targetName) return;
+  const fromIdx = state.columns.findIndex(c => c.name === draggedName);
+  if (fromIdx === -1) return;
+  const [col] = state.columns.splice(fromIdx, 1);
+  col.top = isTopRow;
+  if (targetName === null) {{
+    // Dropped on empty row space, not on a specific column — send to the
+    // end of that row. filter() preserves relative order of matching
+    // elements regardless of what's interspersed, so a plain push here
+    // still lands it last within its row, not necessarily last overall.
+    state.columns.push(col);
+  }} else {{
+    const targetIdx = state.columns.findIndex(c => c.name === targetName);
+    state.columns.splice(targetIdx === -1 ? state.columns.length : targetIdx, 0, col);
+  }}
   saveState();
   render();
 }}
@@ -213,12 +250,42 @@ function applySearch() {{
   }});
 }}
 
-function buildColumnElement(col) {{
+function buildColumnElement(col, isTopRow) {{
     const colEl = document.createElement("div");
     colEl.className = "column";
 
+    // Conference reordering: drag the handle to move this column, including
+    // across the Power 4 / Everyone Else boundary. Uses a distinct
+    // dataTransfer type so it never gets confused with a team-chip drag.
+    colEl.addEventListener("dragover", e => {{
+      if (!e.dataTransfer.types.includes("application/x-conf")) return;
+      e.preventDefault();
+      colEl.classList.add("drag-over-col");
+    }});
+    colEl.addEventListener("dragleave", () => colEl.classList.remove("drag-over-col"));
+    colEl.addEventListener("drop", e => {{
+      if (!e.dataTransfer.types.includes("application/x-conf")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      colEl.classList.remove("drag-over-col");
+      const draggedName = e.dataTransfer.getData("application/x-conf");
+      if (draggedName) reorderColumn(draggedName, col.name, isTopRow);
+    }});
+
     const header = document.createElement("div");
     header.className = "column-header";
+
+    const handle = document.createElement("div");
+    handle.className = "column-handle";
+    handle.textContent = "\\u22ee\\u22ee";
+    handle.title = "Drag to reorder";
+    handle.draggable = true;
+    handle.addEventListener("dragstart", e => {{
+      e.dataTransfer.setData("application/x-conf", col.name);
+      e.stopPropagation();
+      colEl.classList.add("dragging-col");
+    }});
+    handle.addEventListener("dragend", () => colEl.classList.remove("dragging-col"));
 
     const title = document.createElement("div");
     title.className = "column-title";
@@ -232,6 +299,7 @@ function buildColumnElement(col) {{
     count.className = "column-count";
     count.textContent = col.teamIds.length;
 
+    header.appendChild(handle);
     header.appendChild(title);
     header.appendChild(count);
 
@@ -246,10 +314,16 @@ function buildColumnElement(col) {{
 
     const list = document.createElement("div");
     list.className = "chip-list";
-    list.addEventListener("dragover", e => {{ e.preventDefault(); list.classList.add("drag-over"); }});
+    list.addEventListener("dragover", e => {{
+      if (!e.dataTransfer.types.includes("text/plain")) return;
+      e.preventDefault();
+      list.classList.add("drag-over");
+    }});
     list.addEventListener("dragleave", () => list.classList.remove("drag-over"));
     list.addEventListener("drop", e => {{
+      if (!e.dataTransfer.types.includes("text/plain")) return;
       e.preventDefault();
+      e.stopPropagation();
       list.classList.remove("drag-over");
       const teamId = e.dataTransfer.getData("text/plain");
       moveTeam(teamId, col.name);
@@ -291,29 +365,40 @@ function render() {{
   top.innerHTML = "";
   bottom.innerHTML = "";
 
-  // Big Ten/SEC/Big 12/ACC always lead the Power 4 row in that order;
-  // any other top-pinned (e.g. newly created) conferences follow after.
-  const topCols = state.columns.filter(c => c.top).sort((a, b) => {{
-    const ai = TOP_CONF_NAMES.indexOf(a.name);
-    const bi = TOP_CONF_NAMES.indexOf(b.name);
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  }});
+  // Array order is display order (see seedColumns) — no re-sort here, so
+  // drag-reordering sticks across renders.
+  const topCols = state.columns.filter(c => c.top);
   const restCols = state.columns.filter(c => !c.top);
 
-  topCols.forEach(col => top.appendChild(buildColumnElement(col)));
-  restCols.forEach(col => bottom.appendChild(buildColumnElement(col)));
+  topCols.forEach(col => top.appendChild(buildColumnElement(col, true)));
+  restCols.forEach(col => bottom.appendChild(buildColumnElement(col, false)));
 
   document.getElementById("summary").textContent =
     state.columns.length + " conferences \\u00b7 " + TEAMS.length + " teams";
   applySearch();
 }}
 
+function makeRowDropTarget(rowEl, isTopRow) {{
+  // Fallback for dropping on empty row space rather than on a column —
+  // column-level drop handlers call stopPropagation, so this only fires
+  // when the drop didn't land on a column.
+  rowEl.addEventListener("dragover", e => {{
+    if (!e.dataTransfer.types.includes("application/x-conf")) return;
+    e.preventDefault();
+  }});
+  rowEl.addEventListener("drop", e => {{
+    if (!e.dataTransfer.types.includes("application/x-conf")) return;
+    e.preventDefault();
+    const draggedName = e.dataTransfer.getData("application/x-conf");
+    if (draggedName) reorderColumn(draggedName, null, isTopRow);
+  }});
+}}
+
 document.getElementById("add-conf-btn").addEventListener("click", addConference);
 document.getElementById("reset-btn").addEventListener("click", resetBoard);
 document.getElementById("search").addEventListener("input", applySearch);
+makeRowDropTarget(document.getElementById("board-top"), true);
+makeRowDropTarget(document.getElementById("board-bottom"), false);
 
 render();
 </script>

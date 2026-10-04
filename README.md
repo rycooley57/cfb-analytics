@@ -43,6 +43,8 @@ streamlit run dashboard/app.py
 
 A drag-and-drop board (`dashboard/pages/4_Conference_Realignment.py`, `dashboard/realignment.py`) for rearranging all 266 FBS + FCS (Division I) programs into any conference grouping you want. It's a self-contained HTML/CSS/JS component (vanilla drag-and-drop, no libraries) embedded via `st.components.v1.html` — team moves are pure client-side JS, so dragging never triggers a Streamlit rerun, and your layout is saved automatically per-browser via `localStorage`.
 
+Conferences themselves are draggable too, via the ⋮⋮ handle next to each name — reorder within a row, or drag across the Power 4 / Everyone Else boundary to pin or unpin one. Uses a separate `dataTransfer` type (`application/x-conf`) from team-chip drags (plain `text/plain`) so the two never get confused even when one drag crosses over the other's drop zones.
+
 The season selector also includes historical snapshots (1932, 1980, 1999, 2004, 2011, 2024) seeded from CFBD's actual conference records for that year — e.g. 1932 shows Alabama still in the old Southern Conference, a year before the SEC split off. Pre-1978 (and even early-2000s) alignment predates FBS/FCS as categories, so historical years are pulled by "has a conference" rather than the classification-based filter the current season uses (`load_conference_snapshot` vs. `load_d1_teams` in `dashboard/data_loader.py`). The Power 4 pinned row naturally adapts too — in 1932 none of Big Ten/SEC/Big 12/ACC match (Big 12 didn't exist until 1994), so it's just empty; in 1980 it shows Big Ten/SEC/ACC since the Big 12 still didn't exist.
 
 ## Playoff Bracket
